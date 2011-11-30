@@ -1,3 +1,6 @@
+# CPUAverage
+mon-put-metric-alarm cpu-avg --alarm-description "cpu-avg" --metric-name CPUUtilization --namespace "AWS/EC2" --dimensions "InstanceId=i-xxxxxxx" --statistic "Average" --comparison-operator GreaterThanOrEqualToThreshold --threshold 80 --unit Count --period 300 --evaluation-periods 2 --alarm-actions arn:aws:sns:ap-northeast-1:0123456789:sns-alert-resource --ok-actions arn:aws:sns:ap-northeast-1:0123456789:sns-alert-resource --insufficient-data-actions arn:aws:sns:ap-northeast-1:0123456789:sns-alert-resource
+
 # LoadAverage
 mon-put-metric-alarm load-avg --alarm-description "load-avg" --metric-name LoadAverage --namespace "System/Linux" --dimensions "InstanceId=i-xxxxxxx" --statistic "Average" --comparison-operator GreaterThanOrEqualToThreshold --threshold 8 --unit Count --period 300 --evaluation-periods 2 --alarm-actions arn:aws:sns:ap-northeast-1:0123456789:sns-alert-resource --ok-actions arn:aws:sns:ap-northeast-1:0123456789:sns-alert-resource --insufficient-data-actions arn:aws:sns:ap-northeast-1:0123456789:sns-alert-resource
 

@@ -15,15 +15,30 @@
 #           proc_httpd  : ProcCountApache
 #           proc_nginx  : ProcCountNginx
 #
-# Current Version: 1.0
+# Current Version: 1.0.3
 #
 # Revision History:
 #
-#   Version 1.0 by K.Kadoyama (2011/11/24)
+#   Version 1.0.3 by K.Kadoyama (2012/03/20)
+#     - Define add ${CONF_AWS_GLOBAL}.
+#
+#   Version 1.0.2 by K.Kadoyama (2012/01/16)
+#     - Define is change.
+#
+#   Version 1.0.1 by K.Kadoyama (2012/01/16)
+#     - func_disk_put, func_proc_httpd_put, func_proc_nginx_put is corrected.
+#
+#   Version 1.0.0 by K.Kadoyama (2011/11/24)
 #     - Initial new.
 #
-#   Version 0.1 by K.Kadoyama (2011/11/24)
+#   Version 0.1.0 by K.Kadoyama (2011/11/24)
 #     - Created.
+#
+# Example:
+#
+#   # crontab -l
+#   */5 * * * * /path/to/aws_custom_metric.bash mem swap load disk url > /dev/null 2>&1
+#   0 1 * * *   /path/to/aws_custom_metric.bash cert > /dev/null 2>&1
 #
 #-----------------------------------------------------------
 
@@ -32,21 +47,31 @@
 #===========================================================
 # global conf
 #-----------------------------------------------------------
-AWS_CLOUDWATCH_HOME="/opt/aws/apitools/mon"
-AWS_CLOUDWATCH_URL="https://monitoring.amazonaws.com"
-AWS_CREDENTIAL_FILE="/opt/aws/credentials.txt"
-JAVA_HOME="/usr/lib/jvm/jre"
-PATH="${PATH}:${AWS_CLOUDWATCH_HOME}/bin"
+export CONF_AWS_GLOBAL="/etc/profile.d/aws-apitools-common.sh"
+if [ -r ${CONF_AWS_GLOBAL} ]; then
+    source ${CONF_AWS_GLOBAL}
+else
+    export AWS_PATH="/opt/aws"
+    export AWS_CREDENTIAL_FILE="/opt/aws/credentials.txt"
+    export EC2_PRIVATE_KEY="/path/to/pk-XXXXXXXXXX.pem"
+    export EC2_CERT="/path/to/cert-XXXXXXXXXXX.pem"
+    export EC2_URL="https://ec2.ap-northeast-1.amazonaws.com"
+    export EC2_REGION="ap-northeast-1"
+    export AWS_CLOUDWATCH_HOME="/opt/aws/apitools/mon"
+    export JAVA_HOME="/usr/lib/jvm/jre"
+fi
+export AWS_CLOUDWATCH_URL="https://monitoring.amazonaws.com"
+export PATH="${AWS_CLOUDWATCH_HOME}/bin:/opt/aws/bin:${PATH}"
 
-SH_ORIG="${0##*/}"
-CMD_MON_PUT="mon-put-data"
-CMD_PS="/bin/ps"
-LOG_FAC="local0"
+export SH_ORIG="${0##*/}"
+export CMD_MON_PUT="${AWS_CLOUDWATCH_HOME}/bin/mon-put-data"
+export CMD_PS="/bin/ps"
+export LOG_FAC="local0"
 
 # use func_disk_put
 #-----------------------------------------------------------
-#LIST_DISK[0]="/"
-#LIST_DISK[1]="/var"
+LIST_DISK[0]="/"
+#LIST_DISK[1]="/storage"
 
 # use func_http_put
 #-----------------------------------------------------------
@@ -55,9 +80,9 @@ LOG_FAC="local0"
 # use func_cert_put
 #-----------------------------------------------------------
 # wget http://prefetch.net/code/ssl-cert-check
-SH_SSL_CHECK="/usr/local/bin/ssl-cert-check"
+SH_SSL_CHECK="/path/to/ssl-cert-check"
 SSL_EXPIRE_DAYS="30"
-#LIST_CERT_URL[0]="example.com:<port(ex.443)>"
+LIST_CERT_URL[0]="127.0.0.1:443"
 
 # use func_proc_httpd_put
 #-----------------------------------------------------------
@@ -196,7 +221,7 @@ func_disk_put() {
     maxused=0
     maxmount="non"
     for i in ${LIST_DISK[@]}; do
-        diskline="`df -k | awk '{print $(NF-4),$(NF-2),$NF}' | grep ${i}$`"
+        diskline="`df -k -P | awk '{print $(NF-4),$(NF-2),$NF}' | grep ${i}$`"
         if [ "x" == "x${diskline}" ]; then
             func_log "info" "${i} is not found."
             continue
@@ -209,6 +234,7 @@ func_disk_put() {
             continue
         fi
         diskused=`echo "scale=3; 100-${diskfree}*100/${disktotal}" | bc`
+        [ "`echo ${diskused} | cut -c1`" = "." ] && diskused="0${diskused}"
         if [ ${maxused%%.*} -lt ${diskused%%.*} ]; then
            maxused="${diskused}"
            maxmount="${diskmount}"
@@ -275,7 +301,7 @@ func_cert_put() {
 func_proc_httpd_put() {
     cnthttpd="`${CMD_PS} -eo 'command' | grep ${PROC_HTTPD} | grep -v grep | wc -l`"
 
-    ${CMD_MON_PUT} -m "ProcCountApache" -n "System/Linux" -d "InstanceId=${instanceid}" -v ${numhttpd} -u "Count"
+    ${CMD_MON_PUT} -m "ProcCountApache" -n "System/Linux" -d "InstanceId=${instanceid}" -v ${cnthttpd} -u "Count"
     ret=$?
     if [ ${ret} -ne 0 ]; then
         func_log "warn" "apache process put error. [${cnthttpd}]"
@@ -291,7 +317,7 @@ func_proc_httpd_put() {
 func_proc_nginx_put() {
     cntnginx="`${CMD_PS} -eo 'command' | grep ${PROC_NGINX} | grep -v grep | wc -l`"
 
-    ${CMD_MON_PUT} -m "ProcCountNginx" -n "System/Linux" -d "InstanceId=${instanceid}" -v ${numhttpd} -u "Count"
+    ${CMD_MON_PUT} -m "ProcCountNginx" -n "System/Linux" -d "InstanceId=${instanceid}" -v ${cntnginx} -u "Count"
     ret=$?
     if [ ${ret} -ne 0 ]; then
         func_log "warn" "nginx process put error. [${cntnginx}]"
